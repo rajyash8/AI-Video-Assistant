@@ -1,6 +1,8 @@
 import streamlit as st
 from dotenv import load_dotenv
 import os
+import time
+import tempfile
 
 from utils.audio_processor import process_input_audio
 from core.transcriber import transcribe_all
@@ -342,6 +344,11 @@ with st.sidebar:
     st.markdown('<span class="badge badge-purple">Input</span>', unsafe_allow_html=True)
     source = st.text_input("YouTube URL or File Path", placeholder="https://youtube.com/watch?v=... or /path/to/file.mp4")
 
+    uploaded = st.file_uploader(
+        "Or upload a video/audio file",
+        type=["mp4", "mp3", "wav", "m4a", "mkv", "webm"],
+    )
+
     language = st.selectbox("Language", ["english", "hinglish"], index=0)
 
     run_btn = st.button("⚡  Analyse", use_container_width=True)
@@ -366,8 +373,8 @@ st.markdown("---")
 
 # ── Run Pipeline ────────────────────────────────────────────────────────────────
 if run_btn:
-    if not source.strip():
-        st.error("Please enter a YouTube URL or file path.")
+    if not source.strip() and uploaded is None:
+        st.error("Please enter a YouTube URL or upload a file.")
     else:
         st.session_state.pipeline_done = False
         st.session_state.result = None
@@ -383,8 +390,17 @@ if run_btn:
             with progress_placeholder.container():
                 st.info("⚙️ Pipeline running — see sidebar for live status…")
 
+            # Uploaded file takes priority over the URL box
+            if uploaded is not None:
+                suffix = os.path.splitext(uploaded.name)[1]
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(uploaded.getbuffer())
+                input_path = tmp.name
+            else:
+                input_path = source.strip()
+
             update_step("audio", "active")
-            chunks = process_input_audio(source)
+            chunks = process_input_audio(input_path)
             update_step("audio", "done")
 
             update_step("transcript", "active")
@@ -539,7 +555,7 @@ else:
             Ready to Analyse
         </div>
         <div style="color:var(--text-muted);font-size:0.85rem;max-width:380px;line-height:1.7">
-            Paste a YouTube URL or local file path in the sidebar, choose your language, and hit <strong>Analyse</strong> to get started.
+            Paste a YouTube URL, or upload a video/audio file in the sidebar, choose your language, and hit <strong>Analyse</strong> to get started.
         </div>
         <div style="margin-top:2rem;display:flex;gap:1rem;flex-wrap:wrap;justify-content:center">
             <span class="badge badge-purple">Transcription</span>
